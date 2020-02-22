@@ -2,54 +2,59 @@ ___
 # wmf
 ___
 
-WMF (Watershed Modeling Framework) is a module to design to work with hydrographic watersheds and the execution of hydrological models. Additionally, it contains tools for data visualization, analysis of variables, and geomorphological analysis.
+Este es un modulo orientado al trabajo con cuencas hidrograficas
+y a la ejecucion de modelos hidrologicos, ademas contiene herramientas
+de vision de datos y analisis geomorfologico de cuencas.
 
-In a Linux machine you just need you can install the module by typing:
+La manera de importar el modulo es:
 
->- sudo python3 setup.py install 
-
-or 
-
->- python3 setup.py install --user
-
-To import the module:
-
->- from wmf import wmf
+    #!/usr/bin/env python
+	>- from wmf import wmf
 
 
-## Modules
+## Modulos
 ___
 
-WMF is the result of two Fortran modules and one python script.
+Contiene modulos provenientes de fortran, compilados mediante
+gfortran e integrados a python mediante f2py.
 
-**cuencas.f90**
+**cuencas**
 
-This module has the tools to extract streams and watersheds from a given DIR and DEM maps.  Also, it has multiple functions to perform different tasks based on the topology of the watershed. Some of the tasks are:
+Contiene las herramientas para determinar la cuenca y varios
+parametros asociados a la misma, cuenta igualmente con herramientas
+para determinar el cauce y algunas propiedades geomorfologicas.
 
-- Obtain the area, slope, TI, HAND, Width function, Horton Order.
-- Extract the network, identify hillslopes and links. 
-- Convert raster to the topology of the watershed.  It can also convert variables to hills or vice-versa.
 
-**modelos.f90**
+**modelos**
 
-This module has the TETIS model (Velez, 2001) written from scratch. It also contains several sub-models and has functions to write and read binary data related to the input and output variables of the hydrological model.  The sub-models are:
+Modulo orientado a la preparación y ejecución del modelo SHIA o bien
+modelos que posteriormente se agreguen al sistema.
 
-- HydroFlash: A flash flood 1D hydraulic model to obtain flood plains during execution based on the DEM and the results of the hydrological model.
+## wmf.py
+___
 
-- SHIA-landslide: An adaptation of the landslide model developed by Aristizabal (2014).
+Reune todo el código y las funciones definicas en **cuencas**
+y en **modelos**
 
-- SED: An adaptation of the sediment production model developed for the CASC2D-SED model.
+## Instalación:
+___
+### Python:
 
-**wmf.py**
+Para instalar el paquete se deben seguir los siguientes pasos:
 
-This is the base script that merges cuencas.f90 and modelos.f90.  It has defined several classes such as the **SimuBasin** class that could be considered the heart of WMF.  In this module, we have many functionalities done as an interface to the Fortran modules.
+>1. Anclarse al repositorio: https://github.com/nicolas998/WMF.git
+o bien descargar el archivo **WMF-master.zip**.
+>2. En el caso de descargar el .zip este debe ser descomprimido,
+luego se debe mover la terminal hasta el directorio
+**cd ~/wmf**
+>3. se instala el paquete: **sudo python setup.py install**
 
-## Requirements:
+#### Requerimientos:
 
->- A Fortran compiler such as **gfortran**, also the user must have the python3-dev tools.
->- Python 3.6 
->- A Unix machine
->- You must have these packages.
+>- Compilador de fortran (gfortran probado).
+>- Python 2.7
+>- Sistema Unix (puede compilar en Windows con Cwing)
+>- Debe tener las siguiente dependencias de python.
 	- numpy
 	- glob
 	- mpl_toolkits.basemap  	
@@ -62,7 +67,17 @@ This is the base script that merges cuencas.f90 and modelos.f90.  It has defined
 	- datetime
 	- matplotlib
 
-I also have tried WMF in **Google Colab** just type:
+### Python con Anaconda:
 
-!pip install git+https://github.com/nicolas998/WMF.git
+Para instalar el paquete se deben seguir los siguientes pasos:
 
+>1. Anclarse al repositorio: https://github.com/nicolas998/WMF.git
+o bien descargar el archivo **WMF-master.zip**.
+>2. En el caso de descargar el .zip este debe ser descomprimido,
+luego se debe mover la terminal hasta el directorio
+**cd ~/wmf**
+>3. se instala el paquete: **pip install -e WMF/**
+
+#### Requerimientos:
+
+>- Los mismos que para python, adicionalmente python dev  

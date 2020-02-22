@@ -605,55 +605,57 @@ subroutine basin_cut(nceldas,basin_f) !Genera una matriz con la cuenca final
 	print *, 'Error: La variable basin_temp no se encuentra alojada'
     endif
 end subroutine
-subroutine basin_basics(basin_f,DEM,DIR,nceldas,acum,long,pend,elev) !calcula: acumulada, longitud y pendiente
+subroutine basin_basics(basin_f,DEM,DIR,nc,nf,nceldas,acum,long,pend,elev) !calcula: acumulada, longitud y pendiente
     !variables de entrada
-    integer, intent(in) :: nceldas
-    integer, intent(in) :: basin_f(3,nceldas), DIR(nceldas)
-    real, intent(in) :: DEM(nceldas)
+    integer, intent(in) :: nceldas,nc,nf
+    integer, intent(in) :: basin_f(3,nceldas), DIR(nc,nf)
+    real, intent(in) :: DEM(nc,nf)
     !variables de salida
     integer, intent(out) :: acum(nceldas)
-    real, intent(out) :: long(nceldas),pend(nceldas), elev(nceldas)
+    real, intent(out) :: long(nceldas),pend(nceldas),elev(nceldas)
     !f2py intent(in) :: nceldas,nc,nf,basin_f,DEM,DIR
     !f2py intent(out) :: acum,long,pend,elev
     integer i,drenaid,col_pos,fil_pos
     real X(nceldas),Y(nceldas)
+    !Calcula la elevacion
+    do i=1,nceldas 
+	elev(i)=DEM(basin_f(2,i),basin_f(3,i))
+    end do
     !Calcula Longitudes, acum y pendiente
-    elev = DEM
     acum=1
     do i=1,nceldas
-		!Determina la celda a la que se drena
-		drenaid=nceldas-basin_f(1,i)+1
-		!Obtiene la longitud de la celda
-		prueba=mod(DIR(i),2)
-		if (prueba.eq.0.0) then
-		    long(i)=dxp
-		else
-		    long(i)=dxp*sqrt(2.0)
-		endif
-		!Calcula el area acumulada
-		if (basin_f(1,i).ne.0) then
-		    acum(drenaid)=acum(drenaid)+acum(i)
-		    pend(i)=abs(DEM(i)-DEM(drenaid))/long(i)
-		else
-		    !call drain_colfil(DIR(basin_f(2,i),basin_f(3,i)),col_pos,fil_pos)
-		    !pend(i)=abs(DEM(i)-DEM(basin_f(2,i)+col_pos,basin_f(3,i)+fil_pos))/long(i)
-		    pend(i)=pend(i-1)
-		endif
-		!Si la pendiente es plana 0, le da un poco de pendiente
-		if (pend(i).eq.0) pend(i)=0.001
+	!Determina la celda a la que se drena
+	drenaid=nceldas-basin_f(1,i)+1
+	!Obtiene la longitud de la celda
+	prueba=mod(DIR(basin_f(2,i),basin_f(3,i)),2)
+	if (prueba.eq.0.0) then
+	    long(i)=dxp
+	else
+	    long(i)=dxp*sqrt(2.0)
+	endif
+	!Calcula el area acumulada
+	if (basin_f(1,i).ne.0) then
+	    acum(drenaid)=acum(drenaid)+acum(i)
+	    pend(i)=abs(elev(i)-elev(drenaid))/long(i)
+	else
+	    call drain_colfil(DIR(basin_f(2,i),basin_f(3,i)),col_pos,fil_pos)
+	    pend(i)=abs(elev(i)-DEM(basin_f(2,i)+col_pos,basin_f(3,i)+fil_pos))/long(i)
+	endif
+	!Si la pendiente es plana 0, le da un poco de pendiente
+	if (pend(i).eq.0) pend(i)=0.001
     end do
     !Calcula escalares genericos de la cuenca
     area=nceldas*dxp**2/1e6 
     pend_media=sum(pend)/nceldas
-    elevacion=sum(DEM)/nceldas
+    elevacion=sum(elev)/nceldas
     !Calcula las coordenadas del centroide de la cuenca
     call basin_coordXY(basin_f,X,Y,nceldas)
     call QsortC(X)
     call QsortC(Y)
     if (mod(nceldas,2).eq.0.0) then
-		centroX=X(nceldas/2); centroY=Y(nceldas/2)
+	centroX=X(nceldas/2); centroY=Y(nceldas/2)
     else
-		centroX=X((nceldas+1)/2); centroY=Y((nceldas+1)/2)
+	centroX=X((nceldas+1)/2); centroY=Y((nceldas+1)/2)
     endif
 end subroutine
 subroutine basin_acum(basin_f,nceldas,acum) !calcula: acumulada
@@ -1200,32 +1202,32 @@ subroutine basin_2map_find(basin,map_ncols,map_nrows,nceldas) !Determina los lim
 	map_nrows=fil_max-fil_min+1
 end subroutine
 subroutine basin_2map(basin,var,mapa,map_ncols,map_nrows,map_xll,map_yll,nceldas) !Genera un mapa de la cuenca tomando los limites encontrados por basin_2map_find
-    !Variables de entrada
-    integer, intent(in) :: nceldas
-    integer, intent(in) :: basin(3,nceldas)
-    real, intent(in) :: var(nceldas)
-    integer, intent(in) :: map_ncols,map_nrows
-    !Variables de salida
-    real, intent(out) :: mapa(map_ncols,map_nrows),map_xll,map_yll
-    !f2py intent(in) :: nceldas, basin, var, map_ncols, map_nrows
-    !f2py intent(out) :: mapa,map_xll,map_yll
-    !Variables locales
-    integer i,j
-    integer col_min,col_max,fil_min,fil_max
-    integer col_rel,fil_rel
-    !Encuentra la fila columna maxima y minima
-    col_min=minval(basin(2,:)); col_max=maxval(basin(2,:))
-    fil_min=minval(basin(3,:)); fil_max=maxval(basin(3,:))
-    !Encuentra el xll y el yll nuevos
-    map_xll=xll+dx*(col_min-1)
-    map_yll=yll+dx*(nrows-fil_max)
-    !Aloja la matriz y comienza a llenarla de datos
-    mapa=nodata
-    do i=1,nceldas
-        col_rel=basin(2,i)-col_min+1
-        fil_rel=basin(3,i)-fil_min+1
-        mapa(col_rel,fil_rel)=var(i)
-    enddo
+	!Variables de entrada
+	integer, intent(in) :: nceldas
+	integer, intent(in) :: basin(3,nceldas)
+	real, intent(in) :: var(nceldas)
+	integer, intent(in) :: map_ncols,map_nrows
+	!Variables de salida
+	real, intent(out) :: mapa(map_ncols,map_nrows),map_xll,map_yll
+	!f2py intent(in) :: nceldas, basin, var, map_ncols, map_nrows
+	!f2py intent(out) :: mapa,map_xll,map_yll
+	!Variables locales
+	integer i,j
+	integer col_min,col_max,fil_min,fil_max
+	integer col_rel,fil_rel
+	!Encuentra la fila columna maxima y minima
+	col_min=minval(basin(2,:)); col_max=maxval(basin(2,:))
+	fil_min=minval(basin(3,:)); fil_max=maxval(basin(3,:))
+	!Encuentra el xll y el yll nuevos
+	map_xll=xll+dx*(col_min-1)
+	map_yll=yll+dx*(nrows-fil_max)
+	!Aloja la matriz y comienza a llenarla de datos
+	mapa=nodata
+	do i=1,nceldas
+		col_rel=basin(2,i)-col_min+1
+		fil_rel=basin(3,i)-fil_min+1
+		mapa(col_rel,fil_rel)=var(i)
+	enddo
 end subroutine
 subroutine basin_point2var(basin_f,id_coord,xy_coord,res_coord,basin_pts,ncoord,nceldas) !Obtiene el vector basin_pts con los puntos de control 
     !Variables de entrada
@@ -1260,7 +1262,7 @@ subroutine basin_point2var(basin_f,id_coord,xy_coord,res_coord,basin_pts,ncoord,
     enddo
 end subroutine
 subroutine basin_extract_var_by_point(basin_f,var,xy_coord,kernel,var_values,ncoord,nceldas) !Entrega el valor de una var de la cuenca a partir de puntos
-!Variables de entrada
+	!Variables de entrada
     integer, intent(in) :: nceldas,ncoord,kernel
     integer, intent(in) :: basin_f(3,nceldas)
     real, intent(in) :: xy_coord(2,ncoord),var(nceldas)
@@ -1269,49 +1271,41 @@ subroutine basin_extract_var_by_point(basin_f,var,xy_coord,kernel,var_values,nco
     !f2py intent(in) :: nceldas,ncoord,basin_f,xy_coord,kernel,var
     !f2py intent(out) :: var_values
     !Variables locales
-    integer i,x_col,y_fil,posit,c,f,cont,posit_temp,k
-    real x,y,valor
-    !Si se da un kernel malo se corrige y se avisa
-    if (kernel .lt. 3 .and. kernel .gt. -1) then
-        k=3
-        print *, 'Alerta: Kernel dado inferior a 3, kernel adoptado igual a 3'
-    else if (kernel .le. -1) then 
-        k=-1
-    else
-        k=kernel
-    endif
-    k=floor(k/2.0)
-    !Busca en cada uno de los puntos 
-    var_values=-9999.0
-    do i=1,ncoord
-        x=(xy_coord(1,i)-xll)/dx
-        x_col=ceiling(x)
-        y=nrows-(xy_coord(2,i)-yll)/dx
-        y_fil=ceiling(y)
-        !Entrega la posicion dentro del vector
-        call find_xy_in_basin(basin_f,x_col,y_fil,posit,nceldas)
-        !solo evalua si el punto esta dentro de la cuenca
-        if (posit .ne. 0) then
-            !Caso de no kernel toma el valor de la celda encontrada
-            if (k .eq. -1) then
-                var_values(i) = var(posit)
-            !Caso cuando el kernel existe y es positivo
-            else
-                cont=0
-                valor=0
-                do c=-k,k
-                    do f=-k,k
-                        call find_xy_in_basin(basin_f,x_col+c,y_fil+f,posit_temp,nceldas)
-                        if (posit .ne. 0) then
-                            cont=cont+1
-                            valor=valor+var(posit_temp)
-                        endif
-                    enddo
-                enddo
-                var_values(i)=valor/cont
-            end if
-        endif
-    enddo
+	integer i,x_col,y_fil,posit,c,f,cont,posit_temp,k
+	real x,y,valor
+	!Si se da un kernel malo se corrige y se avisa
+	if (kernel .lt. 3) then
+		k=3
+		print *, 'Alerta: Kernel dado inferior a 3, kernel adoptado igual a 3'
+	else
+		k=kernel
+	endif
+	k=floor(k/2.0)
+	!Busca en cada uno de los puntos 
+	var_values=-9999.0	
+	do i=1,ncoord
+		x=(xy_coord(1,i)-xll)/dx
+		x_col=ceiling(x)
+		y=nrows-(xy_coord(2,i)-yll)/dx
+		y_fil=ceiling(y)
+		!Entrega la posicion dentro del vector
+		call find_xy_in_basin(basin_f,x_col,y_fil,posit,nceldas)
+		!solo evalua si el punto esta dentro de la cuenca
+		if (posit .ne. 0) then
+			cont=0
+			valor=0
+			do c=-k,k
+				do f=-k,k
+					call find_xy_in_basin(basin_f,x_col+c,y_fil+f,posit_temp,nceldas)
+					if (posit .ne. 0) then
+						cont=cont+1
+						valor=valor+var(posit_temp)
+					endif
+				enddo
+			enddo
+			var_values(i)=valor/cont
+		endif
+	enddo
 end subroutine
 !subroutine basin_var2smooth(basin_f,var,varOut,nc,nf,nceldas,kernel=3)!Suaviza una variable tomando un tamano de kernel variable (kernel cuadrado)
 !	!Variables de entrada
