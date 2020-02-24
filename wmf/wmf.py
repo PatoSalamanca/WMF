@@ -4916,8 +4916,8 @@ class nsgaii_element:
     def __init__(self, rutaLluvia, Qobs, npasos, inicio, SimuBasinElem ,evp =[0,1], infil = [1,200], perco = [1, 40],
         losses = [0,1],velRun = [0.1, 1], velSub = [0.1, 1], velSup =[0.1, 1],
         velStream = [0.1, 1], Hu = [0.1, 1], Hg = [0.1, 1],Hs = [0.1, 1],
-        probCruce = np.ones(10)*0.5, probMutacion = np.ones(10)*0.5,
-        rangosMutacion = [[0,1], [1,200], [1,40], [0,1], [0.1,1], [0.1, 1], [0.1,1], [0.1,1], [0.1, 1], [0.1,1]],
+        probCruce = np.ones(11)*0.5, probMutacion = np.ones(11)*0.5,
+        rangosMutacion = [[0,1], [1,200], [1,40], [0,1], [0.1,1], [0.1, 1], [0.1,1], [0.1,1], [0.1, 1], [0.1,1],[1,1]],
         MaxMinOptima = (1.0, -1.0), CrowDist = 0.5):
         'Descripcion: Inicia el objeto de calibracion genetica tipo NSGAII\n'\
         '   este objeto contiene las reglas principales para la implementacion\n'\
@@ -5026,7 +5026,7 @@ class nsgaii_element:
         return E1, E2
 
     def __cruce__(self, indi1, indi2):
-        for i,u in zip(range(10), self.prob_cruce):
+        for i,u in zip(range(11), self.prob_cruce):
             p = np.random.uniform(0,1,1)
             if p>u:
                 a = indi1[i]; b = indi2[i]
@@ -5036,7 +5036,7 @@ class nsgaii_element:
 
     def __mutacion__(self, indi):
         c = 0
-        for i,u in zip(range(10), self.prob_mutacion):
+        for i,u in zip(range(11), self.prob_mutacion):
             p = np.random.uniform(0,1,1)
             if p>u:
                 indi[i] = np.random.uniform(self.rangos_mutacion[c][0],self.rangos_mutacion[c][0],1)[0]
