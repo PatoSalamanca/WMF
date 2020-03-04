@@ -1524,8 +1524,8 @@ subroutine sed_channel(S5,v5,Q5,So,e_a,s_l,s_w,celda,drena_id,VolSal) !subrutina
     qsSUS=0;qsBM=0                
     !Longitud de la seccion y Radio Hidraulico
     if (S5.gt.0.0) then
-        L = s_w
-        lam = ((e_a/1000.0) * S5)/((s_l*s_w)/1000.0)
+        L = s_w*1000.0
+        lam = ((e_a) * S5)/((s_l*s_w))
         Rh=L*lam/(L+2*lam)
     else
         Rh=0.0
@@ -1536,7 +1536,7 @@ subroutine sed_channel(S5,v5,Q5,So,e_a,s_l,s_w,celda,drena_id,VolSal) !subrutina
         Cw(i)=0.05*(Gsed/(Gsed-1))*(v5*So)/(sqrt((Gsed-1)*grav*diametro(i)/1000.0))*sqrt((Rh*So)/((Gsed-1)*(diametro(i)/1000.0)))
         !Tasa de atrapamiento
         if (lam.gt.wi(i)*dt) then
-            Te(i)=wi(i)*dt/lam
+            Te(i)=wi(i)*dt*1000.0/lam
         else
             Te(i)=1
         endif
