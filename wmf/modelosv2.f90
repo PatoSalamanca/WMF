@@ -80,11 +80,13 @@ integer sim_floods !Simula (1) o no (0) inundaciones
 integer save_storage !Guarda (1) o no (0) almacenamiento de los tanques en cada intervalo.
 integer save_speed !Guarda (1) o no (0) las velocidades en cada intervalo
 integer save_retorno !Guarda (1) o no (0) el flujo de retorno en cada intervalo de tiempo
+integer save_sed !Guarda (1) o no (0) el material erosionado en cada intervalo dt
 integer save_vfluxes !Guarda o no los flujos verticales simulados por el modelo.
 integer show_storage !(1)Calcula el alm medio en la cuenca para cada tanque y lo muestra en la salida. (0) no lo hace.
 integer show_speed !(1) muestra la velocidad en los puntos de control de caudales. (0) no lo hace.
 integer show_mean_speed !(1) muestra la velocidad promedio en cada uno de los 4 tanques. (0) no lo hace
 integer show_mean_retorno !(1) muestra la suma de los milimetros retornados en un intervalo.
+integer show_sed !(1) muestra el promedio de los sedimentos en un intervalo.
 integer show_area !(1) muestra el area en los puntos de control (0) no lo hace
 integer separate_fluxes !Separa (1) o no (0) los flujos que componen el caudal (base, sub-superficial y runoff)
 integer separate_rain !Separa (1) o no (0) los flujos de acuerdo al tipo de lluvia (convectiva, estratiforme)
@@ -93,6 +95,7 @@ integer, allocatable :: control(:,:) !Celdas de la cuenca que tienen puntos de c
 integer, allocatable :: control_h(:,:) !Celdas de la cuenca que son puntos de control de humedad
 integer, allocatable :: guarda_cond(:) !Intervalos de tiempo en que se hace guardado de condiciones
 integer, allocatable :: guarda_vfluxes(:) !Intervalos de tiempo en que se hace guardado de los vfluxes
+integer, allocatable :: guarda_sed(:) !Intervalos de tiempo en que se hace guardado de sed
 integer calc_niter !Cantidad de iteraciones para la ecuacion de solucion numerica (defecto 5)
 
 !Variables de resultados globales (siempre van a estar ahi)
@@ -106,6 +109,7 @@ real, allocatable :: Storage_conv(:,:) !Almacenamuiento solo lluvia convectiva
 real, allocatable :: Storage_stra(:,:) !Almacenamiento solo lluvia stratiforme
 real, allocatable :: mean_storage(:,:) !Almacenamiento promedio en cada intervalo para toda la cuenca. (5,n_reg)
 real, allocatable :: mean_speed(:,:) !Velocidad promedio en los 4 tanques que vierten de forma hztal. (4,n_reg)
+real, allocatable :: mean_sed(:,:) !sedimentos transportados promedio  (4,n_reg)
 real, allocatable :: mean_retorno(:) !Promedio de la cantidad de milimetro retornados en un intervalo de tiempo (n_reg)
 real, allocatable :: mean_vfluxes(:,:) !Promedio de los flujos pasados en la vertical (4,n_reg)
 real, allocatable :: vfluxes(:,:) !Flujo vertical simulado por el modelo para cada uno de los tanques (4,n_reg)
@@ -115,9 +119,9 @@ real sed_factor !factor para calibrar el modelo de sedimentos
 real wi(3), Qskr,G,diametro(3)
 real qlin_sed !Caudal lineal de sedimentos para el tte en ladera
 real ERO(3),EROt(3),DEP(3),DEPt(3)
-real, allocatable :: VolERO(:),VolDEPo(:) !Volumen erosionado por celda, Volumen depositado en la celda
+real, allocatable :: VolERO(:),VolDEPo(:),VolEroDepo(:,:) !Volumen erosionado y depositado por celda, Volumen depositado en la celda
 real, allocatable :: Vs(:,:),Vd(:,:)
-real, allocatable :: VSc(:,:),Vdc(:,:)
+real, allocatable :: VSc(:,:),VDc(:,:)
 !Mapas para el calculo de sedimentos
 real, allocatable :: Krus(:,:),Crus(:,:),Prus(:,:) !Factores de la RUSLE
 real, allocatable :: PArLiAc(:,:) !Porcentaje de arenas, limos y arcillas
@@ -188,7 +192,8 @@ contains
 
 subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N_reg,Q,&
 	& Qsed, Qseparated, Hum, St1, St3, balance, speed, AreaControl, StoOut, ruta_storage, ruta_speed, &
-	& ruta_vfluxes, ruta_binConv, ruta_binStra, ruta_hdrConv, ruta_hdrStra, Qsep_byrain, ruta_retorno)
+    & ruta_vfluxes, ruta_binConv, ruta_binStra, ruta_hdrConv, ruta_hdrStra, Qsep_byrain, ruta_retorno,&
+    & ruta_sed)
     
     !--------------------------------------------------------------------------
     !DECLARACION DE VARIABLES
@@ -199,7 +204,7 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
     character*500, intent(in) :: ruta_bin, ruta_hdr
     character*500, intent(in), optional :: ruta_storage
     character*500, intent(in), optional :: ruta_binConv, ruta_hdrConv, ruta_binStra, ruta_hdrStra
-    character*500, intent(in), optional :: ruta_speed, ruta_retorno, ruta_vfluxes
+    character*500, intent(in), optional :: ruta_speed, ruta_retorno, ruta_vfluxes, ruta_sed
     real, intent(in), optional :: StoIn(5, N_cel)
     real, intent(in), optional :: HspeedIn(4, N_cel)
     
@@ -366,6 +371,12 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
 		if (allocated(mean_speed)) deallocate(mean_speed)
 		allocate(mean_speed(4,N_reg))
 		mean_speed = 0
+    endif
+    !Preparacion para el caso en que se muestra en la salida el sed promedio por tanque 
+	if (show_sed.eq. 1) then 
+		if (allocated(mean_sed)) deallocate(mean_sed)
+		allocate(mean_sed(4,N_reg))
+		mean_sed = 0
 	endif
 
     !Prepara en caso de que se vayan a guardar condiciones, este cambio busca 
@@ -381,6 +392,23 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
                 deallocate(guarda_cond)
                 allocate(guarda_cond(N_reg))
                 guarda_cond = 0
+            endif    
+        endif
+    endif 
+
+    !Prepara en caso de que se vayan a guardar sedimentos, este cambio busca 
+   !que se guarden condiciones de forma especifica 
+    if (save_sed .eq. 1) then 
+        !Verifica si no esta alojada la vairable, en caso de que no no guarda condiciones
+        if (allocated(guarda_sed) .eqv. .false.) then 
+            allocate(guarda_sed(N_reg))
+            guarda_sed = 0
+        else    
+            !Si esta aojada, pero no coincide con la cantidad de registros, tampoco guarda nada
+            if (sizeof(guarda_sed) .lt. N_reg) then 
+                deallocate(guarda_sed)
+                allocate(guarda_sed(N_reg))
+                guarda_sed = 0
             endif    
         endif
     endif 
@@ -542,15 +570,15 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
                         !con la velocidad y el area calcula la cantidad de agua que sale del tanque
                         hflux(i)=min(section_area*hspeed(i,celda)*dt/m3_mmHill(celda),&
                             & StoOut(i+1,celda))![mm]
-                    !Simulacion de sedimentos 
-                    if (sim_sediments .eq. 1 .and. i .eq. 1) then
-                        !Calcula el caudal lineal
-                        qlin_sed = hflux(i)*m3_mmHill(celda)/(dt*dxp)
-                        !Calcula la produccion de sedimentos
-                        call sed_hillslope(sed_factor,hspeed(1,celda),StoOut(2,celda),hill_slope(1,celda)&
-                            &,celda,drenaid,unit_type(1,celda)) !Subrutina para calcular los sedimentos en ladera
-                    end if
                 end select
+                !Simulacion de sedimentos 
+                if (sim_sediments .eq. 1 .and. i .eq. 1) then
+                    !Calcula el caudal lineal
+                    qlin_sed = hflux(i)*m3_mmHill(celda)/(dt*dxp)
+                    !Calcula la produccion de sedimentos
+                    call sed_hillslope(sed_factor,hspeed(1,celda),StoOut(2,celda),hill_slope(1,celda)&
+                        &,celda,drenaid,unit_type(1,celda)) !Subrutina para calcular los sedimentos en ladera
+                end if
                 !---------------------------------------
                 !SEP_LLUVIA
                 !Si hay separacion por lluvia, actualiza 
@@ -614,8 +642,9 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
                 if (sim_sediments .eq. 1) then
                     Vsal_sed = 0.0
                     call sed_channel(StoOut(5,celda),hspeed(4,celda),hflux(4)*m3_mmRivers(celda)/dt,&
-                        & stream_slope(1,celda), elem_area(1,celda),stream_long(1,celda),stream_width(1,celda),&
+                        & stream_slope(1,celda), section_area,stream_long(1,celda),stream_width(1,celda),&
                         &celda,drenaid,Vsal_sed)
+                        ! elem_area(1,celda) --> section_area
                 end if
 
                 !---------------------------------------
@@ -800,6 +829,12 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
         if (save_retorno .eq. 1) then
             call write_float_basin(ruta_retorno,retorned,tiempo,N_cel,1)
         endif
+
+        !Guarda campo de sedimentos del modelo
+        if (save_sed .eq. 1) then
+            call write_float_basin(ruta_sed,VolEroDepo,tiempo,N_cel,4)
+        endif
+		
         
         !Genera un promedio de cada tanque en caso de que se indique que lo haga  
         if (show_storage .eq. 1) then 
@@ -820,6 +855,12 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
         if (show_mean_retorno .eq. 1 .or. save_retorno .eq. 1) then
             Retorned = 0.0
         endif	
+
+        !Actualiza sed si tiene que hacerlo
+        if (show_sed .eq. 1 .or. save_sed .eq. 1) then
+             mean_sed(:,tiempo)= sum(VolEroDepo,dim=2)
+        endif
+
         !Actualiza balance 
         balance(tiempo) = sum(StoOut)-StoAtras - entradas + salidas
         entradas = 0
@@ -1269,22 +1310,21 @@ end subroutine
 subroutine sed_allocate(N_cel) !Funcion para alojar variables si se van a calcular sed
     integer, intent(in) :: N_cel
     !Tamaño a los vectores de sedimentos en suspención y depositads
-    if (allocated(Vd) .eqv. .false.) then 
-        allocate(Vd(3,N_cel))
-        Vd = 0.0 !m3
-    endif
+    if (allocated(Vd) .eqv. .false.) allocate(Vd(3,N_cel))
     if (allocated(Vs) .eqv. .false.) allocate(Vs(3,N_cel))
     if (allocated(VolERO) .eqv. .false.) allocate(VolERO(N_cel))
     if (allocated(VolDEPo) .eqv. .false.) allocate(VolDEPo(N_cel))
+    if (allocated(VolEroDepo) .eqv. .false.) allocate(VolEroDepo(4,N_cel))
     if (allocated(VSc) .eqv. .false.) allocate(VSc(3,N_cel))
     if (allocated(VDc) .eqv. .false.) allocate(VDc(3,N_cel))    
     !estado inicial del almacenamiento de sedimentos
-    VS=0 ![m3]
-    !VD=0![m3]
+    Vs=0 ![m3]
+    Vd=0![m3]
     VSc=0 ![m3]
     VDc=0 ![m3]
     VolERO=0
     VolDEPo=0 ![m3]
+    VolEroDepo=0
     EROt=0
     DEPt=0
 end subroutine
@@ -1304,6 +1344,7 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
     qsSUStot=0;qsBMtot=0;qsEROtot=0
     qsSUS=0;qsBM=0;qsERO=0                
     SUStot=0;DEPtot=0    
+    VolEroDepo(:,celda) = 0
     !Calcula capacidad de arrastre
     !q=area_sec*v2/dxp
     !q = 1.0
@@ -1315,14 +1356,15 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
         else
             Te(i)=1
         endif
-        !Calcula los sedimentos depositados en la celda
-        Vd(i,celda)=Vd(i,celda)+Te(i)*Vs(i,celda)
-        Vs(i,celda)=Vs(i,celda)-Te(i)*Vs(i,celda) 
         DEP(i)=Te(i)*Vs(i,celda)
+        !Calcula los sedimentos depositados en la celda
+        Vd(i,celda)=Vd(i,celda)+DEP(i)
+        Vs(i,celda)=Vs(i,celda)-DEP(i)         
         !Calcula totales de suspendidos y depositados
         SUStot=SUStot+Vs(i,celda)
         DEPtot=DEPtot+Vd(i,celda)
-    enddo    
+    enddo
+    VolEroDepo(4,celda)=VolEroDepo(4,celda)+sum(DEP)
     !Transporta los sedimentos suspendidos
     do i=1,3
         if (Vs(i,celda).gt.0.0) then
@@ -1333,8 +1375,8 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
                 !Adv = Vs(i,celda)*v2*dt/dxp !version julien  
                 !Transporta por suspención lo mayor entre: lo que se puede llevar la capacidad
                 !y lo que se puede llevar por advección
-                !qsSUS(i)=min(max(cap,Adv),Vs(i,celda)) ![m3]
-                qsSUS(i) = max(cap,Adv)
+                qsSUS(i)=min(max(cap,Adv),Vs(i,celda)) ![m3]
+                !qsSUS(i) = max(cap,Adv)
             else
                 qsSUS(i)=Vs(i,celda)
             endif
@@ -1344,7 +1386,7 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
         if (tipo.eq.1) then
             Vs(i,drena_id)=Vs(i,drena_id)+qsSUS(i)
         else
-            Vsc(i,celda)=Vsc(i,celda)+qsSUS(i)
+            VSc(i,drena_id)=VSc(i,drena_id)+qsSUS(i)
         endif
     enddo
     !Capacidad de transporte de exceso
@@ -1365,17 +1407,17 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
             !Acumula lo que se tta de cada fracción en el tot de transportado por cama
             qsBMtot=qsBMtot+qsBM(i) ![m3]
             !Actualiza lo que se fue del vol depositado de cada fracción
-            DEP(i)=DEP(i)-qsBM(i) ![m3]
-            if (DEP(i).lt.0) DEP(i)=0    
+            !DEP(i)=DEP(i)-qsBM(i) ![m3]
+            !if (DEP(i).lt.0) DEP(i)=0    
             Vd(i,celda)=Vd(i,celda)-qsBM(i)
             if (tipo.eq.1) then
                 Vs(i,drena_id)=Vs(i,drena_id)+qsBM(i)
             else
-                Vsc(i,celda)=Vsc(i,celda)+qsBM(i)
+                VSc(i,drena_id)=VSc(i,drena_id)+qsBM(i)
             endif
         enddo
     endif
-    DEPt=DEPt+DEP
+    !DEPt=DEPt+DEP
     !Capacidad residual 
     REScap=max(0.0, totXSScap-qsBMtot) ![m3]
     !Si la capacidad residual es mayor a cero, se presenta erosión
@@ -1388,7 +1430,7 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
             if (tipo.eq.1) then
                 Vs(i,drena_id)=Vs(i,drena_id)+qsERO(i)
             else
-                Vsc(i,celda)=Vsc(i,celda)+qsERO(i)
+                VSc(i,drena_id)=VSc(i,drena_id)+qsERO(i)
             endif
         end do
     endif
@@ -1396,115 +1438,11 @@ subroutine sed_hillslope(alfa,v2,S2,So,celda,drena_id,tipo) !Subrutina para calc
     !Actualiza el mapa total de erosion y depositacion
     VolERO(celda)=VolERO(celda)+sum(qsERO)
     VolDEPo(celda)=VolDEPo(celda)+sum(DEP)
+    VolEroDepo(1,celda)=VolEroDepo(1,celda)+sum(qsERO)
+    VolEroDepo(2,celda)=VolEroDepo(2,celda)+sum(qsBM)
+    VolEroDepo(3,celda)=VolEroDepo(3,celda)+sum(qsSUS)
 end subroutine
-!subroutine sed_hillslope(alfa,S2,v2,So,area_sec,celda,drena_id,tipo) !Subrutina para calcular los sedimentos en ladera
-!    !Variables de entrada
-!    real, intent(in) :: S2,v2,So,area_sec,alfa
-!    integer, intent(in) :: celda,drena_id,tipo
-!    !Variables locales 
-!    integer i
-!    real qsSUStot,qsBMtot,qsEROtot,qsSUS(3),qsBM(3),qsERO(3) !deposit y transporte
-!    real SUStot,DEPtot
-!    real totXSScap, REScap !Capacidades de transporte
-!    real q,Qskr,cap,Adv,Te(3) !Caudal lateral y Capacidad de arrastre
-!    !Inicia Variables propias    
-!    DEP=0
-!    qsSUStot=0;qsBMtot=0;qsEROtot=0
-!    qsSUS=0;qsBM=0;qsERO=0                
-!    SUStot=0;DEPtot=0    
-!    !Calcula capacidad de arrastre
-!    q=area_sec*v2/dxp
-!    !q = 1.0
-!    Qskr=alfa*(So**1.664)*(q**2.035)*Krus(1,celda)*Crus(1,celda)*Prus(1,celda)*dxp*dt
-!    !Calcula Depositacion y atrapamiento      
-!    do i=1,3
-!        if (S2/1000>wi(i)*dt) then
-!            Te(i)=wi(i)*dt*1000/S2
-!        else
-!            Te(i)=1
-!        endif
-!        !Calcula los sedimentos depositados en la celda
-!        Vd(i,celda)=Vd(i,celda)+Te(i)*Vs(i,celda)
-!        Vs(i,celda)=Vs(i,celda)-Te(i)*Vs(i,celda) 
-!        DEP(i)=Te(i)*Vs(i,celda)
-!        !Calcula totales de suspendidos y depositados
-!        SUStot=SUStot+Vs(i,celda)
-!        DEPtot=DEPtot+Vd(i,celda)
-!    enddo    
-!    !Transporta los sedimentos suspendidos
-!    do i=1,3
-!        if (Vs(i,celda).gt.0.0) then
-!            if (Qskr .lt. SUStot) then
-!                cap=Qskr*Vs(i,celda)/SUStot  ![m3]                         
-!                !Volumen que se puede llevar por advección
-!                Adv=Vs(i,celda)*v2*dt/(dxp+v2*dt) ![m3]   
-!                !Adv = Vs(i,celda)*v2*dt/dxp !version julien  
-!                !Transporta por suspención lo mayor entre: lo que se puede llevar la capacidad
-!                !y lo que se puede llevar por advección
-!                !qsSUS(i)=min(max(cap,Adv),Vs(i,celda)) ![m3]
-!                qsSUS(i) = max(cap,Adv)
-!            else
-!                qsSUS(i)=Vs(i,celda)
-!            endif
-!        endif
-!        qsSUStot=qsSUStot+qsSUS(i)
-!        Vs(i,celda)=Vs(i,celda)-qsSUS(i)
-!        if (tipo.eq.1) then
-!            Vs(i,drena_id)=Vs(i,drena_id)+qsSUS(i)
-!        else
-!            Vsc(i,celda)=Vsc(i,celda)+qsSUS(i)
-!        endif
-!    enddo
-!    !Capacidad de transporte de exceso
-!    totXSScap=max(0.0,Qskr-qsSUStot)
-!    !Transporta los sedimentos depositados	
-!    if (totXSScap>0.0 .and. DEPtot>0.0) then
-!        do i=1,3
-!            if (Vd(i,celda)>0.0) then    
-!            !Observa si la cap excedente es mayor a la cant total depositada
-!                if (totXSScap<DEPtot) then
-!                    !tta porcentaje del volumen depositado de la fracción
-!                    qsBM(i)=totXSScap*Vd(i,celda)/DEPtot ![m3]
-!                else
-!                    !tta to_do el volumen depositado de la fracción
-!                    qsBM(i)=Vd(i,celda) ![m3]
-!                endif
-!            endif
-!            !Acumula lo que se tta de cada fracción en el tot de transportado por cama
-!            qsBMtot=qsBMtot+qsBM(i) ![m3]
-!            !Actualiza lo que se fue del vol depositado de cada fracción
-!            DEP(i)=DEP(i)-qsBM(i) ![m3]
-!            if (DEP(i).lt.0) DEP(i)=0    
-!            Vd(i,celda)=Vd(i,celda)-qsBM(i)
-!            if (tipo.eq.1) then
-!                Vs(i,drena_id)=Vs(i,drena_id)+qsBM(i)
-!            else
-!                Vsc(i,celda)=Vsc(i,celda)+qsBM(i)
-!            endif
-!        enddo
-!    endif
-!    DEPt=DEPt+DEP
-!    !Capacidad residual 
-!    REScap=max(0.0, totXSScap-qsBMtot) ![m3]
-!    !Si la capacidad residual es mayor a cero, se presenta erosión
-!    if (REScap>0.0) then
-!        !Evalua para cada fracción de tamaño
-!        do i=1,3
-!            !Eroda y agrega a esa fracción de acuerdo a la porción presente en el suelo
-!            qsERO(i)=PArLiAc(i,celda)*REScap/100.0 ![m3]
-!            qsEROtot=qsEROtot+qsERO(i) ![m3]
-!            if (tipo.eq.1) then
-!                Vs(i,drena_id)=Vs(i,drena_id)+qsERO(i)
-!            else
-!                Vsc(i,celda)=Vsc(i,celda)+qsERO(i)
-!            endif
-!        end do
-!    endif
-!    EROt=EROt+qsERO    
-!    !Actualiza el mapa total de erosion y depositacion
-!    VolERO(celda)=VolERO(celda)+sum(qsERO)
-!    VolDEPo(celda)=VolDEPo(celda)+sum(DEP)
-!end subroutine
+
 subroutine sed_channel(S5,v5,Q5,So,e_a,s_l,s_w,celda,drena_id,VolSal) !subrutina para calcular seduimentos en el canals
     !Variables de entrada
     real, intent(in) :: S5,v5,So,e_a,s_l,s_w,Q5
@@ -1524,8 +1462,9 @@ subroutine sed_channel(S5,v5,Q5,So,e_a,s_l,s_w,celda,drena_id,VolSal) !subrutina
     qsSUS=0;qsBM=0                
     !Longitud de la seccion y Radio Hidraulico
     if (S5.gt.0.0) then
-        L = s_w*1000.0
-        lam = ((e_a) * S5)/((s_l*s_w))
+        L = s_w
+        !lam = ((e_a) * S5)/((s_l*s_w))
+        lam = e_a/L
         Rh=L*lam/(L+2*lam)
     else
         Rh=0.0
@@ -1535,20 +1474,22 @@ subroutine sed_channel(S5,v5,Q5,So,e_a,s_l,s_w,celda,drena_id,VolSal) !subrutina
         !Concentracion de sedimentos por Engelund y Hansen        
         Cw(i)=0.05*(Gsed/(Gsed-1))*(v5*So)/(sqrt((Gsed-1)*grav*diametro(i)/1000.0))*sqrt((Rh*So)/((Gsed-1)*(diametro(i)/1000.0)))
         !Tasa de atrapamiento
-        if (lam.gt.wi(i)*dt) then
-            Te(i)=wi(i)*dt*1000.0/lam
+        if (lam>wi(i)*dt) then
+            Te(i)=wi(i)*dt/lam
         else
             Te(i)=1
         endif
         !Calcula los sedimentos depositados en la celda
-        VDc(i,celda)=VDc(i,celda)+Te(i)*Vsc(i,celda)
-        Vsc(i,celda)=Vsc(i,celda)-Te(i)*Vsc(i,celda)
-        DEP(i)=DEP(i)+Te(i)*Vsc(i,celda)
+        DEP(i)=Te(i)*VSc(i,celda)
+        VDc(i,celda)=VDc(i,celda)+DEP(i)
+        VSc(i,celda)=VSc(i,celda)-DEP(i)
+        
     enddo
+    VolEroDepo(4,celda)=VolEroDepo(4,celda) + sum(DEP)
     !Mueve los sedimentos suspendidos
     do i=1,3
         !Calcula lo que hay de seimdneots de la fracción
-        supply=Vsc(i,celda)+Vdc(i,celda) ![m3] 
+        supply=VSc(i,celda)+VDc(i,celda) ![m3] 
         !inicializa el volumen suspendido de la fracción en cero
         qsSUS(i)=0.0   
         !Si lo que hay es mayor que cero, lo transporta
@@ -1558,25 +1499,26 @@ subroutine sed_channel(S5,v5,Q5,So,e_a,s_l,s_w,celda,drena_id,VolSal) !subrutina
             !Calcula factor de tte por advección
             AdvF=min(1.0,v5*dt/(dxp+v5*dt)) ![adim]
             !Realiza el transporte por advección
-            qsSUS(i)=Vsc(i,celda)*AdvF ![m3]
+            qsSUS(i)=VSc(i,celda)*AdvF ![m3]
             !Calcula la capacidad de Exceso sobrante
             XSScap=max(0.0,VolEH-qsSUS(i))
             !Calcula lo que se va de lo depositado
-            qsBM(i)=Vdc(i,celda)*Advf ![m3]
-            qsBM(i)=min(XSScap,qsBM(i)) ![m3] 	    
-            DEP(i)=DEP(i)-qsBM(i)
-            if (DEP(i).lt.0.0) DEP(i)=0.0           
+            qsBM(i)=VDc(i,celda)*Advf ![m3]
+            qsBM(i)=min(XSScap,qsBM(i)) ![m3] 	          
             !Actulia los almacenamientos 
-            Vsc(i,celda)=Vsc(i,celda)-qsSUS(i)
-            Vdc(i,celda)=Vdc(i,celda)-qsBM(i)
+            VSc(i,celda)=VSc(i,celda)-qsSUS(i)
+            VDc(i,celda)=VDc(i,celda)-qsBM(i)
             !Envia aguas abajo lo que se ha transportado
-            if (drena_id.ne.0.0) Vsc(i,drena_id)=Vsc(i,drena_id)+qsSUS(i)+qsBM(i)
+            if (drena_id.ne.0.0) VSc(i,drena_id)=VSc(i,drena_id)+qsSUS(i)+qsBM(i)
             !Reporta el volumen saliente en el intervalo de tiempo
             VolSal(i)=(qsSUS(i)+qsBM(i))/dt
         endif
     enddo
     !DEPt=DEPt+DEP
     VolDEPo(celda)=VolDEPo(celda)+sum(DEP)
+    VolEroDepo(2,celda)=VolEroDepo(2,celda) + sum(qsBM)
+    VolEroDepo(3,celda)=VolEroDepo(3,celda) + sum(qsSUS)
+    
 end subroutine
 
 !-----------------------------------------------------------------------

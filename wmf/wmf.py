@@ -606,13 +606,13 @@ def __Save_storage_hdr__(rute,rute_rain,Nintervals,FirstInt,cuenca,
     f.write('Numero de registros: %d \n' % Nintervals)
     f.write('Tipo Modelo: %s \n' % cuenca.modelType)
     f.write('IDfecha, Tanque 1, Tanque 2, Tanque 3, Tanque 4, Tanque 5, Fecha \n')
-    c = 1
+    #c = 1
     #Si no hay almacenamiento medio lo coloca en -9999
     #Escribe registros medios y fechas de los almacenamientos
-    for d,sto in zip(S.index.to_pydatetime(),Mean_Storage.T):
+    for d,sto,c in zip(S.index.to_pydatetime(),Mean_Storage.T, WhereItSave):
         f.write('%d, \t %.2f, \t %.4f, \t %.4f, \t %.2f, \t %.2f, %s \n' %
             (c,sto[0],sto[1],sto[2],sto[3],sto[4],d.strftime('%Y-%m-%d-%H:%M')))
-        c+=1
+        #c+=1
     f.close()
 
 def __Save_speed_hdr__(rute,rute_rain,Nintervals,FirstInt,cuenca,
@@ -656,6 +656,29 @@ def __Save_retorno_hdr__(rute,rute_rain,Nintervals,FirstInt,cuenca,
     for d,sto in zip(S.index.to_pydatetime(),Mean_retorno):
         f.write('%d, \t %.2f, %s \n' % (c, sto,d.strftime('%Y-%m-%d-%H:%M')))
         c+=1
+    f.close()
+
+def __Save_sed_hdr__(rute,rute_rain,Nintervals,FirstInt,cuenca,
+        Mean_sed,WhereItSave):
+    '''Function to save the header file of the model storage'''    
+    #Lee fechas para el intervalo de tiempo
+    S = read_mean_rain(rute_rain,Nintervals,FirstInt)
+    #Escribe el encabezado del archivo
+    f=open(rute,'w')
+    f.write('Numero de celdas: %d \n' % cuenca.ncells)
+    f.write('Numero de laderas: %d \n' % cuenca.nhills)
+    f.write('Numero de registros: %d \n' % Nintervals)
+    f.write('Tipo Modelo: %s \n' % cuenca.modelType)
+    f.write('IDfecha, qEro,qBM, qSus, depositado, Fecha \n')
+    #c = 1
+    #Si no hay almacenamiento medio lo coloca en -9999
+    if np.mean(Mean_sed) == None:
+        Mean_sed = np.ones((4,Nintervals))*-9999
+    #Escribe registros medios y fechas de los almacenamientos
+    for d,sto,c in zip(S.index.to_pydatetime(),Mean_sed.T,WhereItSave):
+        f.write('%d,  \t %.4f, \t %.4f,  \t %.4f,  \t %.4f, %s \n' %
+            (c,sto[0],sto[1],sto[2],sto[3],d.strftime('%Y-%m-%d-%H:%M')))
+        #c+=1
     f.close()
 
 def map_acum_to_stream(ACUM,umbral):
@@ -3307,6 +3330,9 @@ class SimuBasin(Basin):
             models.save_speed=0
             if SaveSpeed is 'si':
                 models.save_speed=1
+            models.save_sed = 0
+            if SaveSed is 'si':
+                models.save_sed=1
             models.separate_fluxes = 0
             if SeparateFluxes is 'si':
                 models.separate_fluxes = 1
@@ -4552,7 +4578,7 @@ class SimuBasin(Basin):
         #------------------------------------------------------
     def run_shia(self,Calibracion,
         rain_rute, N_intervals, start_point = 1, StorageLoc = None, HspeedLoc = None,ruta_storage = None, ruta_speed = None,
-        ruta_conv = None, ruta_stra = None, ruta_retorno = None,kinematicN = 5, QsimDataFrame = True, 
+        ruta_conv = None, ruta_stra = None,ruta_vfluxes =None, ruta_retorno = None, ruta_sed = None, kinematicN = 5, QsimDataFrame = True, 
         EvpVariable = 'sun', EvpSerie = None, Dates2Save = None):
         'Descripcion: Ejecuta el modelo una ves este es preparado\n'\
         '   Antes de su ejecucion se deben tener listas todas las . \n'\
@@ -4636,11 +4662,16 @@ class SimuBasin(Basin):
             ruta_sto_bin, ruta_sto_hdr = __Add_hdr_bin_2route__(ruta_storage,
                 storage = True)
             #Check if is going to save model states at certain dates
-            if Dates2Save is not None:
-                WhereItSaves = self.set_StorageDates(Rain.index, Dates2Save, N_intervals)
-            else:
+            if Dates2Save is None:
                 print('Warning: model will save states in all time steps this may require a lot of space')
-                WhereItSaves = np.arange(1,N_intervals+1)
+                models.guarda_cond = np.array(range(N_intervals))+1
+            else:
+                ToStore = pd.DataFrame(np.zeros(N_intervals),index=Rain.index)
+                if type(Dates2Save) == list:
+                    Dates2Save = pd.to_datetime(Dates2Save)
+                for c,i in enumerate(Dates2Save):
+                    ToStore.loc[i] = c+1
+                models.guarda_cond = np.copy(ToStore.values.T.astype(int)[0])
         else:
             models.save_storage = 0
             ruta_sto_bin = 'no_guardo_nada.StObin'
@@ -4663,6 +4694,33 @@ class SimuBasin(Basin):
             models.save_retorno = 0
             ruta_ret_bin = 'no_guardo_nada.bin'
             ruta_ret_hdr = 'no_guardo_nada.hdr'
+        #Prepara variables para el almacenamiento de retorno
+        if ruta_vfluxes is not None:
+            models.save_vfluxes = 1
+            ruta_vfluxes_bin, ruta_vfluxes_hdr = __Add_hdr_bin_2route__(ruta_vfluxes)
+        else:
+            models.save_vfluxes = 0
+            ruta_vfluxes_bin = 'no_guardo_nada.bin'
+            ruta_vfluxes_hdr = 'no_guardo_nada.hdr'
+
+        #Prepara variables para el almacenamiento de ossediment
+        if ruta_sed is not None:
+            models.save_sed = 1
+            ruta_sed_bin, ruta_sed_hdr = __Add_hdr_bin_2route__(ruta_sed)
+            if Dates2Save is None:
+                print('Warning: model will save states in all time steps this may require a lot of space')
+                models.guarda_sed = np.array(range(N_intervals))+1
+            else:
+                ToStore = pd.DataFrame(np.zeros(N_intervals),index=Rain.index)
+                if type(Dates2Save) == list:
+                    Dates2Save = pd.to_datetime(Dates2Save)
+                for c,i in enumerate(Dates2Save):
+                    ToStore.loc[i] = c+1
+                models.guarda_sed = np.copy(ToStore.values.T.astype(int)[0])
+        else:
+            models.save_sed = 0
+            ruta_sed_bin = 'no_guardo_nada.bin'
+            ruta_sed_hdr = 'no_guardo_nada.hdr'
         #Variables de separacion de flujo por tipo de lluvia
         if ruta_conv  is not  None and ruta_stra  is not  None:
             ruta_binConv,ruta_hdrConv = __Add_hdr_bin_2route__(ruta_conv)
@@ -4709,11 +4767,13 @@ class SimuBasin(Basin):
             N,
             ruta_sto_bin,
             ruta_speed_bin,
+            ruta_vfluxes_bin,
             ruta_binConv,
             ruta_binStra,
             ruta_hdrConv,
             ruta_hdrStra,
-            ruta_ret_bin)
+            ruta_ret_bin,
+            ruta_sed_bin,)
         #Retorno de variables de acuerdo a lo simulado
         Retornos={'Qsim' : Qsim}
         Retornos.update({'Balance' : Balance})
@@ -4736,11 +4796,12 @@ class SimuBasin(Basin):
             #Caso en el que se registra el alm medio
             if models.show_storage == 1:
                 __Save_storage_hdr__(ruta_sto_hdr,rain_ruteHdr,N_intervals,
-                    start_point,self,np.copy(models.mean_storage),WhereItSaves)
+                    start_point,self,np.copy(models.mean_storage),WhereItSave=models.guarda_cond)
             #Caso en el que no hay alm medio para cada uno de los
             else:
                 __Save_storage_hdr__(ruta_sto_hdr,rain_ruteHdr,N_intervals,
-                    start_point,self,np.zeros((5,N))*-9999,WhereItSaves)
+                    start_point,self,np.zeros((5,N))*-9999,WhereItSave=models.guarda_cond)
+            
         #Area de la seccion
         if models.show_area == 1:
             Retornos.update({'Sec_Area': Area})
@@ -4768,6 +4829,13 @@ class SimuBasin(Basin):
                 __Save_retorno_hdr__(ruta_ret_hdr, rain_ruteHdr, N_intervals,
                     start_point, self)
 
+        if models.save_sed == 1:
+            if models.show_sed == 1:
+                __Save_sed_hdr__(ruta_sed_hdr, rain_ruteHdr, N_intervals,
+                    start_point, self, Mean_sed = np.copy(models.mean_sed),WhereItSave=models.guarda_sed)
+            else:
+                __Save_sed_hdr__(ruta_sed_hdr, rain_ruteHdr, N_intervals,
+                    start_point, self,np.zeros((4,N))*-9999,WhereItSave=models.guarda_sed)
         #Campo de lluvia acumulado para el evento
         Retornos.update({'Rain_Acum': models.acum_rain})
         Retornos.update({'Rain_hietogram': models.mean_rain})
