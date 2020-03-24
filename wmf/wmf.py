@@ -669,15 +669,15 @@ def __Save_sed_hdr__(rute,rute_rain,Nintervals,FirstInt,cuenca,
     f.write('Numero de laderas: %d \n' % cuenca.nhills)
     f.write('Numero de registros: %d \n' % Nintervals)
     f.write('Tipo Modelo: %s \n' % cuenca.modelType)
-    f.write('IDfecha, qEro,qBM, qSus, depositado, Fecha \n')
+    f.write('IDfecha, qEro,qBM, qSus, Depo, Vs, Vd, Fecha \n')
     #c = 1
     #Si no hay almacenamiento medio lo coloca en -9999
     if np.mean(Mean_sed) == None:
-        Mean_sed = np.ones((4,Nintervals))*-9999
+        Mean_sed = np.ones((6,Nintervals))*-9999
     #Escribe registros medios y fechas de los almacenamientos
     for d,sto,c in zip(S.index.to_pydatetime(),Mean_sed.T,WhereItSave):
-        f.write('%d,  \t %.4f, \t %.4f,  \t %.4f,  \t %.4f, %s \n' %
-            (c,sto[0],sto[1],sto[2],sto[3],d.strftime('%Y-%m-%d-%H:%M')))
+        f.write('%d,  \t %.4f, \t %.4f,  \t %.4f,  \t %.4f,  \t %.4f,  \t %.4f, %s \n' %
+            (c,sto[0],sto[1],sto[2],sto[3],sto[4],sto[5],d.strftime('%Y-%m-%d-%H:%M')))
         #c+=1
     f.close()
 
