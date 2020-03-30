@@ -78,6 +78,8 @@ integer sim_sediments !Simula (1) o no (0) sedimentos
 integer sim_slides !Simula (1) o no (0) deslizamientos
 integer sim_floods !Simula (1) o no (0) inundaciones
 integer save_storage !Guarda (1) o no (0) almacenamiento de los tanques en cada intervalo.
+integer save_storage_all !Guarda (1) o no (0) almacenamiento de los tanques en cada intervalo.
+integer save_storage_all1 !Guarda (1) o no (0) almacenamiento de los tanques en cada intervalo.
 integer save_speed !Guarda (1) o no (0) las velocidades en cada intervalo
 integer save_retorno !Guarda (1) o no (0) el flujo de retorno en cada intervalo de tiempo
 integer save_sed !Guarda (1) o no (0) el material erosionado en cada intervalo dt
@@ -87,6 +89,8 @@ integer show_speed !(1) muestra la velocidad en los puntos de control de caudale
 integer show_mean_speed !(1) muestra la velocidad promedio en cada uno de los 4 tanques. (0) no lo hace
 integer show_mean_retorno !(1) muestra la suma de los milimetros retornados en un intervalo.
 integer show_sed !(1) muestra el promedio de los sedimentos en un intervalo.
+integer save_sed_all !Guarda (1) o no (0) sed de los tanques en cada intervalo.
+integer save_sed_all2 !Guarda (1) o no (0) sed de los tanques en cada intervalo.
 integer show_area !(1) muestra el area en los puntos de control (0) no lo hace
 integer separate_fluxes !Separa (1) o no (0) los flujos que componen el caudal (base, sub-superficial y runoff)
 integer separate_rain !Separa (1) o no (0) los flujos de acuerdo al tipo de lluvia (convectiva, estratiforme)
@@ -108,8 +112,12 @@ real, allocatable :: Fluxes(:,:) !Matriz de flujos separados (3,nelem), 1: Super
 real, allocatable :: Storage_conv(:,:) !Almacenamuiento solo lluvia convectiva 
 real, allocatable :: Storage_stra(:,:) !Almacenamiento solo lluvia stratiforme
 real, allocatable :: mean_storage(:,:) !Almacenamiento promedio en cada intervalo para toda la cuenca. (5,n_reg)
+real, allocatable :: all_storage(:,:,:) !Almacenamiento promedio en cada intervalo para toda la cuenca en cada dt. (5,n_reg,dt)
+real, allocatable :: all1_storage(:,:) !Almacenamiento promedio en cada intervalo para toda la cuenca en cada dt. (n_reg,dt)
 real, allocatable :: mean_speed(:,:) !Velocidad promedio en los 4 tanques que vierten de forma hztal. (4,n_reg)
 real, allocatable :: mean_sed(:,:) !sedimentos transportados promedio  (4,n_reg)
+real, allocatable :: all_sed(:,:,:) !sedimentos promedio en cada intervalo para toda la cuenca en cada dt. (6,n_reg,dt)
+real, allocatable :: all2_sed(:,:,:) !sedimentos promedio en cada intervalo para toda la cuenca en cada dt. (2,n_reg,dt)
 real, allocatable :: mean_retorno(:) !Promedio de la cantidad de milimetro retornados en un intervalo de tiempo (n_reg)
 real, allocatable :: mean_vfluxes(:,:) !Promedio de los flujos pasados en la vertical (4,n_reg)
 real, allocatable :: vfluxes(:,:) !Flujo vertical simulado por el modelo para cada uno de los tanques (4,n_reg)
@@ -193,7 +201,7 @@ contains
 subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N_reg,Q,&
 	& Qsed, Qseparated, Hum, St1, St3, balance, speed, AreaControl, StoOut, ruta_storage, ruta_speed, &
     & ruta_vfluxes, ruta_binConv, ruta_binStra, ruta_hdrConv, ruta_hdrStra, Qsep_byrain, ruta_retorno,&
-    & ruta_sed)
+    & ruta_sed, ruta_storage_all, ruta_sed_all,ruta_storage_all1, ruta_sed_all2)
     
     !--------------------------------------------------------------------------
     !DECLARACION DE VARIABLES
@@ -205,6 +213,7 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
     character*500, intent(in), optional :: ruta_storage
     character*500, intent(in), optional :: ruta_binConv, ruta_hdrConv, ruta_binStra, ruta_hdrStra
     character*500, intent(in), optional :: ruta_speed, ruta_retorno, ruta_vfluxes, ruta_sed
+    character*500, intent(in), optional :: ruta_storage_all, ruta_sed_all,ruta_storage_all1, ruta_sed_all2
     real, intent(in), optional :: StoIn(5, N_cel)
     real, intent(in), optional :: HspeedIn(4, N_cel)
     
@@ -412,7 +421,31 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
             endif    
         endif
     endif 
-    
+
+    if (save_storage_all .eq. 1) then 
+        if (allocated(all_storage)) deallocate(all_storage)
+		allocate(all_storage(5,N_cel,N_reg))
+        all_storage= 0
+    endif
+
+    if (save_sed_all .eq. 1) then 
+        if (allocated(all_sed)) deallocate(all_sed)
+		allocate(all_sed(6,N_cel,N_reg))
+        all_sed= 0
+    endif
+
+    if (save_storage_all1 .eq. 1) then 
+        if (allocated(all1_storage)) deallocate(all1_storage)
+		allocate(all1_storage(N_cel,N_reg))
+        all1_storage= 0
+    endif
+
+    if (save_sed_all2 .eq. 1) then 
+        if (allocated(all2_sed)) deallocate(all2_sed)
+		allocate(all2_sed(2,N_cel,N_reg))
+        all2_sed= 0
+    endif
+
     !Prepara el modelo para guardar vertical fluxes
     if (save_vfluxes .eq. 1) then
 		!Aloja la variable de loe Vfluxes para hacer guardado en el tiempo
@@ -807,8 +840,8 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
 			if (guarda_cond(tiempo) .gt. 0) then
 				call write_float_basin(ruta_storage,StoOut,guarda_cond(tiempo),N_cel,5)
 			endif
-		endif
-		
+        endif
+        		
 		!Guarda los flujos verticales del modelo 
 		if (save_vfluxes .eq. 1) then
 			!Calculate the mean _vflux
@@ -858,6 +891,23 @@ subroutine shia_v1(ruta_bin,ruta_hdr,calib,StoIn,HspeedIn,N_cel,N_cont,N_contH,N
         !Actualiza sed si tiene que hacerlo
         if (show_sed .eq. 1 .or. save_sed .eq. 1) then
              mean_sed(:,tiempo)= sum(VolEroDepo,dim=2)
+        endif
+
+        if (save_storage_all .eq. 1) then
+            all_storage(:,:,tiempo) = StoOut
+        endif
+
+        if (save_sed_all .eq. 1) then
+            all_sed(:,:,tiempo) = VolEroDepo
+        endif
+
+        if (save_storage_all1 .eq. 1) then
+            all1_storage(:,tiempo) = StoOut(0,:)
+        endif
+
+        if (save_sed_all2 .eq. 1) then
+            all2_sed(1,:,tiempo) = VolEroDepo(1,:)
+            all2_sed(2,:,tiempo) = VolEroDepo(6,:)
         endif
 
         !Actualiza balance 

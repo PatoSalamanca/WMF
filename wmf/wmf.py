@@ -79,6 +79,42 @@ import random
 Global_EPSG = -9999
 
 #-----------------------------------------------------------------------
+# guardar nc
+#-----------------------------------------------------------------------
+def save_nc(rute,array):
+    dr = netcdf.Dataset(rute, 'w', format='NETCDF4_CLASSIC',)
+    
+    dr.createDimension('tq', array.shape[0])
+    dr.createDimension('ncel', array.shape[1])
+    dr.createDimension('time', array.shape[2])
+
+    tq = dr.createVariable('tq', 'float32', ('tq'),zlib=True,least_significant_digit=0)
+    tq[:] = np.arange(array.shape[0])
+    ncel = dr.createVariable('ncel', 'float32', ('ncel'),zlib=True,least_significant_digit=0)
+    ncel[:] = np.arange(array.shape[1])
+    time = dr.createVariable('time', 'int32', ('time'))
+    time[:] = array.shape[2]
+    var = dr.createVariable('var', 'float32', ('tq','ncel', 'time'),zlib=True,least_significant_digit=3)
+    var [:,:,:] = array
+
+    dr.close
+
+def save_nc1(rute,array):
+    dr = netcdf.Dataset(rute, 'w', format='NETCDF4_CLASSIC',)
+    
+    dr.createDimension('ncel', array.shape[0])
+    dr.createDimension('time', array.shape[1])
+
+    ncel = dr.createVariable('ncel', 'float32', ('ncel'),zlib=True,least_significant_digit=0)
+    ncel[:] = np.arange(array.shape[0])
+    time = dr.createVariable('time', 'int32', ('time'))
+    time[:] = array.shape[1]
+    var = dr.createVariable('var', 'float32', ('ncel', 'time'),zlib=True,least_significant_digit=3)
+    var [:,:] = array
+
+    dr.close
+    
+#-----------------------------------------------------------------------
 #Ploteo de variables
 #-----------------------------------------------------------------------
 def plot_sim_single(Qs,Qo=None,mrain=None,Dates=None,ruta=None,
@@ -3333,6 +3369,18 @@ class SimuBasin(Basin):
             models.save_sed = 0
             if SaveSed is 'si':
                 models.save_sed=1
+            models.save_sed_all = 0
+            if SaveSedAll is 'si':
+                models.save_sed_all=1
+            models.save_storage_all = 0
+            if SaveStorageAll is 'si':
+                models.save_storage_all=1
+            models.save_sed_all2 = 0
+            if SaveSedAll is 'si':
+                models.save_sed_all2=1
+            models.save_storage_all1 = 0
+            if SaveStorageAll is 'si':
+                models.save_storage_all1=1
             models.separate_fluxes = 0
             if SeparateFluxes is 'si':
                 models.separate_fluxes = 1
@@ -4578,8 +4626,8 @@ class SimuBasin(Basin):
         #------------------------------------------------------
     def run_shia(self,Calibracion,
         rain_rute, N_intervals, start_point = 1, StorageLoc = None, HspeedLoc = None,ruta_storage = None, ruta_speed = None,
-        ruta_conv = None, ruta_stra = None,ruta_vfluxes =None, ruta_retorno = None, ruta_sed = None, kinematicN = 5, QsimDataFrame = True, 
-        EvpVariable = 'sun', EvpSerie = None, Dates2Save = None):
+        ruta_conv = None, ruta_stra = None,ruta_vfluxes =None, ruta_retorno = None, ruta_sed = None, ruta_storage_all = None,ruta_sed_all = None, 
+        ruta_storage_all1 = None,ruta_sed_all2 = None, kinematicN = 5, QsimDataFrame = True, EvpVariable = 'sun', EvpSerie = None, Dates2Save = None):
         'Descripcion: Ejecuta el modelo una ves este es preparado\n'\
         '   Antes de su ejecucion se deben tener listas todas las . \n'\
         '   variables requeridas . \n'\
@@ -4721,6 +4769,7 @@ class SimuBasin(Basin):
             models.save_sed = 0
             ruta_sed_bin = 'no_guardo_nada.bin'
             ruta_sed_hdr = 'no_guardo_nada.hdr'
+
         #Variables de separacion de flujo por tipo de lluvia
         if ruta_conv  is not  None and ruta_stra  is not  None:
             ruta_binConv,ruta_hdrConv = __Add_hdr_bin_2route__(ruta_conv)
@@ -4773,7 +4822,11 @@ class SimuBasin(Basin):
             ruta_hdrConv,
             ruta_hdrStra,
             ruta_ret_bin,
-            ruta_sed_bin,)
+            ruta_sed_bin,
+            ruta_storage_all,
+            ruta_sed_all,
+            ruta_storage_all1,
+            ruta_sed_all2,)
         #Retorno de variables de acuerdo a lo simulado
         Retornos={'Qsim' : Qsim}
         Retornos.update({'Balance' : Balance})
@@ -4828,6 +4881,7 @@ class SimuBasin(Basin):
             else:
                 __Save_retorno_hdr__(ruta_ret_hdr, rain_ruteHdr, N_intervals,
                     start_point, self)
+        
 
         if models.save_sed == 1:
             if models.show_sed == 1:
@@ -4836,6 +4890,17 @@ class SimuBasin(Basin):
             else:
                 __Save_sed_hdr__(ruta_sed_hdr, rain_ruteHdr, N_intervals,
                     start_point, self,np.zeros((4,N))*-9999,WhereItSave=models.guarda_sed)
+        if  models.save_storage_all == 1:
+            save_nc(ruta_storage_all,np.copy(models.all_storage))
+            
+        if  models.save_sed_all == 1:
+            save_nc(ruta_sed_all,np.copy(models.all_sed))
+
+        if  models.save_storage_all1 == 1:
+            save_nc1(ruta_storage_all1,np.copy(models.all1_storage))
+            
+        if  models.save_sed_all2 == 1:
+            save_nc(ruta_sed_all2,np.copy(models.all2_sed))
         #Campo de lluvia acumulado para el evento
         Retornos.update({'Rain_Acum': models.acum_rain})
         Retornos.update({'Rain_hietogram': models.mean_rain})
@@ -4883,7 +4948,9 @@ class SimuBasin(Basin):
             if models.separate_fluxes == 0 and models.sim_sediments == 1:
                 return Retornos, Qdict, QsediDict
             return Retornos, Qdict
+        
         return Retornos
+
 
     def efficiencia(self, Qobs, Qsim):
         'Descripcion: Calcula diferentes indices de desempeno del modelo\n'\
