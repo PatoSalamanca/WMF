@@ -245,10 +245,10 @@ def plot_mean_storage(Mean_Storage, Dates = None, mrain = None,
     colorRain = kwargs.get('colorRain','b')
     lwRain = kwargs.get('lwRain',0.1)
     #Inicio de la funcion
-    if Dates ~is None:
-        ejeX=Dates
-    else:
+    if Dates is None:
         ejeX=range(Mean_Storage.shape[1])
+    else:
+        ejeX=Dates
     #figura
     fig = pl.figure(figsize = figsize)
     nombres = ['Hu','Runoff','Hg','Sub','Stream']
