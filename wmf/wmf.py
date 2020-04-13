@@ -245,10 +245,10 @@ def plot_mean_storage(Mean_Storage, Dates = None, mrain = None,
     colorRain = kwargs.get('colorRain','b')
     lwRain = kwargs.get('lwRain',0.1)
     #Inicio de la funcion
-    if Dates==None:
-        ejeX=range(Mean_Storage.shape[1])
-    else:
+    if Dates ~is None:
         ejeX=Dates
+    else:
+        ejeX=range(Mean_Storage.shape[1])
     #figura
     fig = pl.figure(figsize = figsize)
     nombres = ['Hu','Runoff','Hg','Sub','Stream']
@@ -3225,6 +3225,7 @@ class SimuBasin(Basin):
         umbral=500,useCauceMap = None,epsg = None,
         noData=-999,modelType='cells',SimSed=False,SimSlides=False,dt=60,
         SaveStorage='no',SaveSpeed='no',retorno = 0,
+        SaveSed='no',SaveSedAll='no',SaveSedAll2='no',SaveStorageAll='no',SaveStorageAll1='no',
         SeparateFluxes = 'no',SeparateRain='no',ShowStorage='no', SimFloods = 'no',
         controlNodos = True, storageConstant = 0.001):
         'Descripcion: Inicia un objeto para simulacion \n'\
