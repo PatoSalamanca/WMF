@@ -3195,7 +3195,7 @@ class Basin:
         Slope[Slope==0]=Slope[Slope==0]+0.005
         # Área acum sin tener en cuenta conectividad en el cauce
         Acum_A = cu.basin_acum_var(self.structure[0], np.ones((1,self.ncells)),self.ncells)
-        Acc_final = cu.basin_acum_n_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_A)
+        Acc_final = cu.basin_acum_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_A)
         Acc_final = Acc_final*self.CellCauce+Acum_A*(1-self.CellCauce)+1
         # Ddn conectividad componente hacia aguas abajo
         C_RUSLE = models.crus[0]
@@ -3207,12 +3207,12 @@ class Basin:
         Ddn = X
         # Dup conectividad componente hacia aguas arriba
         Acum_Cmean = cu.basin_acum_var(self.structure[0],np.ones((1,self.ncells))*C_RUSLE,self.ncells)
-        Cmean = cu.basin_acum_n_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_Cmean)
+        Cmean = cu.basin_acum_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_Cmean)
         Cmean = ((Cmean*self.CellCauce+Acum_Cmean*(1-self.CellCauce))+C_RUSLE)/Acc_final
         Cmean[Cmean<=0]=np.min(Cmean[Cmean>0])
 
         Acum_Smean = cu.basin_acum_var(self.structure[0],np.ones((1,self.ncells))*Slope,self.ncells)
-        Smean = cu.basin_acum_n_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_Smean)
+        Smean = cu.basin_acum_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_Smean)
         Smean = ((Smean*self.CellCauce+Acum_Smean*(1-self.CellCauce))+Slope)/Acc_final
         Smean[Smean<=0]=np.min(Smean[Smean>0])
 
