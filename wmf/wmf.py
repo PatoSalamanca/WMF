@@ -2578,6 +2578,7 @@ class Basin:
             shpAlpha = kwargs.get('shpAlpha',0.5)
             xy_colorbar = kwargs.get('xy_colorbar', False)
             axis_c = kwargs.get('axis_c', None)
+            clean = kwargs.get('clean',False)
             
             if lines_spaces == 'Default':
                 lines_spaces = cu.dx*cu.ncols*0.05
@@ -2599,6 +2600,12 @@ class Basin:
             else:
                 show = False
 
+            #Quita ejes
+            if clean:
+                ax.set_xticklabels([])
+                ax.set_yticklabels([])
+                ax.axis('off')
+                
             if latlon_maxmin == None:
                 latlon_maxmin = [ lats.max()+extra_lat, lats.min()-extra_lat, longs.max()+extra_long, longs.min()-extra_long]
 
@@ -3188,7 +3195,7 @@ class Basin:
         Slope[Slope==0]=Slope[Slope==0]+0.005
         # Área acum sin tener en cuenta conectividad en el cauce
         Acum_A = cu.basin_acum_var(self.structure[0], np.ones((1,self.ncells)),self.ncells)
-        Acc_final = cu.basin_acum_n_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_A)
+        Acc_final = cu.basin_acum_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_A)
         Acc_final = Acc_final*self.CellCauce+Acum_A*(1-self.CellCauce)+1
         # Ddn conectividad componente hacia aguas abajo
         C_RUSLE = models.crus[0]
