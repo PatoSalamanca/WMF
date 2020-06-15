@@ -3195,7 +3195,7 @@ class Basin:
         Slope[Slope==0]=Slope[Slope==0]+0.005
         # Área acum sin tener en cuenta conectividad en el cauce
         Acum_A = cu.basin_acum_var(self.structure[0], np.ones((1,self.ncells)),self.ncells)
-        Acc_final = cu.basin_acum_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_A)
+        Acc_final = cu.basin_acum_n_var(self.structure[0],(np.ones((1,self.ncells))*self.CellCauce)*Acum_A)
         Acc_final = Acc_final*self.CellCauce+Acum_A*(1-self.CellCauce)+1
         # Ddn conectividad componente hacia aguas abajo
         C_RUSLE = models.crus[0]
