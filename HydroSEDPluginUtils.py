@@ -25,6 +25,7 @@ class controlHS(object):
     def __init__(self):
         self.DEM = 0
         self.DIR = 0
+        self.EPSG =0
         self.xll = 0
         self.yll = 0
         self.nodata = 0
@@ -110,15 +111,15 @@ class controlHS(object):
         pathMapaDIR = pathMapaDIR.strip ()
         EPSG_code = -999
         try:
-            self.DIR, EPSG_code = wmf.read_map_raster (pathMapaDIR, isDEMorDIR = True, isDIR = True, dxp = dxp, noDataP = -9999)
+            self.DIR, self.EPSG = wmf.read_map_raster (pathMapaDIR, isDEMorDIR = True, isDIR = True, dxp = dxp, noDataP = -9999)
             retornoCargaLayerMapaRaster = True    
         except:
             self.DIR = 1
-        return retornoCargaLayerMapaRaster, EPSG_code
+        return retornoCargaLayerMapaRaster, self.EPSG
     
     def trazador_corriente(self,x,y, path = None):
         #Traza la corriente en las coordenadas especificadas
-        self.stream = wmf.Stream(x, y, self.DEM, self.DIR)
+        self.stream = wmf.Stream(x, y, self.DEM, self.DIR,epsg=self.EPSG)
         #Guarda la corriente.
         if path is not None:
             self.stream.Save_Stream2Map(path)

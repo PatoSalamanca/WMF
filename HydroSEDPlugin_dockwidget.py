@@ -134,8 +134,8 @@ class HydroSEDPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.iface.layerTreeView().refreshLayerSymbology(layer.id()) 
             
             self.iface.messageBar().pushInfo(u'HidroSIG',u'Se ha trazado la corriente de forma exitosa')
-        except:
-            pass
+        except Exception as e:
+            raise e 
 
     def handleClickEventEjecutarTrazadorCuencas (self):
         #Obtiene coordenadas
