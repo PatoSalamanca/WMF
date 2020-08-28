@@ -1,83 +1,32 @@
-___
-# wmf
-___
+Plugin Builder Results
 
-Este es un modulo orientado al trabajo con cuencas hidrograficas
-y a la ejecucion de modelos hidrologicos, ademas contiene herramientas
-de vision de datos y analisis geomorfologico de cuencas.
+Your plugin HydroSEDPlugin was created in:
+    /home/jctrujillo/Documents/ManoNegra/Aplicaciones/unal_isagen/WMF/qgis_plugin/HydroSEDPlugin
 
-La manera de importar el modulo es:
+Your QGIS plugin directory is located at:
+    /home/jctrujillo/.qgis2/python/plugins
 
-    #!/usr/bin/env python
-	>- from wmf import wmf
+What's Next:
 
+  * Copy the entire directory containing your new plugin to the QGIS plugin
+    directory
 
-## Modulos
-___
+  * Compile the resources file using pyrcc4
 
-Contiene modulos provenientes de fortran, compilados mediante
-gfortran e integrados a python mediante f2py.
+  * Run the tests (``make test``)
 
-**cuencas**
+  * Test the plugin by enabling it in the QGIS plugin manager
 
-Contiene las herramientas para determinar la cuenca y varios
-parametros asociados a la misma, cuenta igualmente con herramientas
-para determinar el cauce y algunas propiedades geomorfologicas.
+  * Customize it by editing the implementation file: ``HydroSEDPlugin.py``
 
+  * Create your own custom icon, replacing the default icon.png
 
-**modelos**
+  * Modify your user interface by opening HydroSEDPlugin.ui in Qt Designer
 
-Modulo orientado a la preparación y ejecución del modelo SHIA o bien
-modelos que posteriormente se agreguen al sistema.
+  * You can use the Makefile to compile your Ui and resource files when
+    you make changes. This requires GNU make (gmake)
 
-## wmf.py
-___
+For more information, see the PyQGIS Developer Cookbook at:
+http://www.qgis.org/pyqgis-cookbook/index.html
 
-Reune todo el código y las funciones definicas en **cuencas**
-y en **modelos**
-
-## Instalación:
-___
-### Python Puro:
-
-Para instalar el paquete se deben seguir los siguientes pasos:
-
->1. Anclarse al repositorio: https://github.com/nicolas998/WMF.git
-o bien descargar el archivo **WMF-master.zip**.
->2. En el caso de descargar el .zip este debe ser descomprimido,
-luego se debe mover la terminal hasta el directorio
-**cd ~/wmf**
->3. se instala el paquete: **sudo python setup.py install**
-
-#### Requerimientos:
-
->- Compilador de fortran (gfortran probado).
->- Python 2.7
->- Sistema Unix (puede compilar en Windows con Cwing)
->- Debe tener las siguiente dependencias de python.
-	- numpy
-	- glob
-	- mpl_toolkits.basemap
-	- netCDF4
-	- osgeo
-	- gdal
-	- scipy
-	- os
-	- pandas
-	- datetime
-	- matplotlib
-
-### Python con Anaconda:
-
-Para instalar el paquete se deben seguir los siguientes pasos:
-
->1. Anclarse al repositorio: https://github.com/nicolas998/WMF.git
-o bien descargar el archivo **WMF-master.zip**.
->2. En el caso de descargar el .zip este debe ser descomprimido,
-luego se debe mover la terminal hasta el directorio
-**cd ~/wmf**
->3. se instala el paquete: **pip install -e WMF/**
-
-#### Requerimientos:
-
->- Los mismos que para python puro, adicionalmente python dev
+(C) 2011-2018 GeoApt LLC - geoapt.com
